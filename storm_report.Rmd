@@ -29,6 +29,14 @@ storm.harmful <- storm.harmful[storm.harmful$total > 0, ]
 ```{r,echo=TRUE}
 library(ggplot2)
 g <- ggplot(storm.harmful, aes(total.injuries, total.fatalities, size=total, label=EVTYPE))
-g <- g + geom_point(colour="#56B4E9") + geom_text(size=3, hjust=1, vjust=2, angle=30) + scale_y_log10() + scale_x_log10()
-g + scale_size(range=c(2,25)) + theme(legend.position="none")
+g <- g + geom_point(colour="#56B4E9") + geom_text(size=3, hjust=1, vjust=1, angle=-45) + scale_y_log10(limits=c(1,10000)) + scale_x_log10(limits=c(10,100000))
+g + scale_size(range=c(2,40)) + theme(legend.position="none")
+```
+
+```{r,echo=TRUE}
+library(reshape2)
+storm.harmful.melt <- melt(storm.harmful, id=c("EVTYPE"), measure=c("total.injuries","total.fatalities"))
+g2 <- ggplot(storm.harmful.melt, aes(x=EVTYPE, y=value, fill=variable))
+g2 + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle=90, hjust=1))
+
 ```
