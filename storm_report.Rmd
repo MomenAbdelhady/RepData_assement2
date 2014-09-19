@@ -1,0 +1,34 @@
+Title reflective of analysis
+========================================================
+
+## Synopsis
+
+no more than 10 sentcences describing work
+
+## Data procressing
+
+```{r,echo=TRUE}
+library(stringr)
+
+storm.data <- read.csv("../stormdata.csv.bz2", stringsAsFactors=FALSE)
+
+storm.data$BGN_DATE <- as.Date(sub(" 0:00:00","",storm.data$BGN_DATE),format="%m/%d/%Y")
+storm.data$EVTYPE <- toupper(storm.data$EVTYPE)
+storm.data$EVTYPE <- str_trim(storm.data$EVTYPE)
+```
+
+```{r,echo=TRUE}
+library(plyr)
+post.1995 <- storm.data[storm.data$BGN_DATE >= as.Date("01/01/1996",format="%m/%d/%Y"),]
+storm.harmful <- ddply(post.1995,c("EVTYPE"),summarise,total.injuries=sum(INJURIES),total.fatalities=sum(FATALITIES))
+storm.harmful$total <- storm.harmful$total.injuries + storm.harmful$total.fatalities
+storm.harmful <- storm.harmful[storm.harmful$total > 0, ]
+
+```
+## Results
+```{r,echo=TRUE}
+library(ggplot2)
+g <- ggplot(storm.harmful, aes(total.injuries, total.fatalities, size=total, label=EVTYPE))
+g <- g + geom_point(colour="#56B4E9") + geom_text(size=3, hjust=1, vjust=2, angle=30) + scale_y_log10() + scale_x_log10()
+g + scale_size(range=c(2,25)) + theme(legend.position="none")
+```
