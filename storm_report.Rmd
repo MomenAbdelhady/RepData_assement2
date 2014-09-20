@@ -7,36 +7,81 @@ no more than 10 sentcences describing work
 
 ## Data procressing
 
-```{r,echo=TRUE}
+```{r,echo=TRUE, cache=TRUE}
 library(stringr)
 
-storm.data <- read.csv("../stormdata.csv.bz2", stringsAsFactors=FALSE)
+storm.data <- read.csv("../stormdata.bz2", stringsAsFactors=FALSE)
 
 storm.data$BGN_DATE <- as.Date(sub(" 0:00:00","",storm.data$BGN_DATE),format="%m/%d/%Y")
 storm.data$EVTYPE <- toupper(storm.data$EVTYPE)
 storm.data$EVTYPE <- str_trim(storm.data$EVTYPE)
+
+```
+
+```{r,echo=TRUE, cache=TRUE}
+library(plyr)
+post.1995 <- storm.data[storm.data$BGN_DATE >= as.Date("01/01/1996",format="%m/%d/%Y"),]
+
+multiplier <- c(3,6,9)
+names(multiplier) <- c("K","M","B")
+
+post.1995$fixed.crop.damage <-  ifelse(post.1995$CROPDMG>0,post.1995$CROPDMG*10^as.numeric(multiplier[post.1995$CROPDMGEXP]),post.1995$CROPDMG)
+post.1995$fixed.prop.damage <-  ifelse(post.1995$PROPDMG>0,post.1995$PROPDMG*10^as.numeric(multiplier[post.1995$PROPDMGEXP]),post.1995$PROPDMG)
+```
+
+```{r, echo=TRUE}
+post.1995$EVTYPE <-  sub("WILD/FOREST FIRE","WILDFIRE",post.1995$EVTYPE)
+post.1995$EVTYPE <-  sub("RIP CURRENTS","RIP CURRENT",post.1995$EVTYPE)
+post.1995$EVTYPE <-  sub("HURRICANE/TYPHOON","HURRICANE",post.1995$EVTYPE)
+post.1995$EVTYPE <-  sub("TYPHOON","HURRICANE",post.1995$EVTYPE)
+post.1995$EVTYPE <-  sub("^TSTM","THUNDERSTORM",post.1995$EVTYPE)
+post.1995$EVTYPE <-  sub("STORM SURGE/TIDE","STORM SURGE",post.1995$EVTYPE)
+post.1995$EVTYPE <-  sub("EROSION/CSTL FLOOD","COSTAL EROSION",post.1995$EVTYPE)
 ```
 
 ```{r,echo=TRUE}
-library(plyr)
-post.1995 <- storm.data[storm.data$BGN_DATE >= as.Date("01/01/1996",format="%m/%d/%Y"),]
-storm.harmful <- ddply(post.1995,c("EVTYPE"),summarise,total.injuries=sum(INJURIES),total.fatalities=sum(FATALITIES))
+storm.harmful <- ddply(post.1995,c("EVTYPE"),summarise,total.injuries=sum(INJURIES),total.fatalities=sum(FATALITIES),avg.injuries=mean(INJURIES),avg.fatalities=mean(FATALITIES),total.events=length(EVTYPE))
 storm.harmful$total <- storm.harmful$total.injuries + storm.harmful$total.fatalities
-storm.harmful <- storm.harmful[storm.harmful$total > 0, ]
+storm.harmful$avg.harm <- storm.harmful$total/storm.harmful$total.events
 
+storm.harmful <- storm.harmful[storm.harmful$total > 0, ]
+storm.harmful.t10 <- head(storm.harmful[order(storm.harmful$total,decreasing=TRUE),],10)
+
+```
+
+```{r,echo=TRUE}
+storm.cost <- ddply(post.1995,c("EVTYPE"),summarise,total.crop=sum(fixed.crop.damage),total.prop=sum(fixed.prop.damage),avg.crop=mean(fixed.crop.damage),avg.prop=mean(fixed.prop.damage),total.events=length(EVTYPE))
+storm.cost$total.cost <- storm.cost$total.crop + storm.cost$total.prop
+storm.cost$avg.total.cost <- storm.cost$total.cost/storm.cost$total.events
+storm.cost <- storm.cost[storm.cost$total.cost > 0,]
+storm.cost <- storm.cost[order(storm.cost$total.cost,decreasing=TRUE),]
+storm.cost.t10 <- head(storm.cost,10)
 ```
 ## Results
 ```{r,echo=TRUE}
 library(ggplot2)
-g <- ggplot(storm.harmful, aes(total.injuries, total.fatalities, size=total, label=EVTYPE))
-g <- g + geom_point(colour="#56B4E9") + geom_text(size=3, hjust=1, vjust=1, angle=-45) + scale_y_log10(limits=c(1,10000)) + scale_x_log10(limits=c(10,100000))
-g + scale_size(range=c(2,40)) + theme(legend.position="none")
+g <- ggplot(storm.harmful.t10, aes(avg.injuries, avg.fatalities, size=total.events, label=EVTYPE))
+g <- g + geom_point(colour="#56B4E9", alpha=I(0.4)) + geom_text(size=3, hjust=0.5, vjust=1) + scale_y_log10() + scale_x_log10()
+g + scale_size(range=c(5,50)) + theme(legend.position="none")
 ```
 
 ```{r,echo=TRUE}
 library(reshape2)
-storm.harmful.melt <- melt(storm.harmful, id=c("EVTYPE"), measure=c("total.injuries","total.fatalities"))
+storm.harmful.melt <- melt(storm.harmful.t10, id=c("EVTYPE"), measure=c("total.injuries","total.fatalities"))
 g2 <- ggplot(storm.harmful.melt, aes(x=EVTYPE, y=value, fill=variable))
+g2 + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle=90, hjust=1))
+
+```
+
+```{r,echo=TRUE}
+g <- ggplot(storm.cost.t10, aes(avg.prop, avg.crop, size=total.events, label=EVTYPE))
+g <- g + geom_point(colour="#56B4E9", alpha=I(0.4)) + geom_text(size=3, hjust=0.3, vjust=1) + scale_y_log10() + scale_x_log10()
+g + scale_size(range=c(5,50)) + theme(legend.position="none")
+```
+
+```{r,echo=TRUE}
+storm.cost.melt <- melt(storm.cost.t10, id=c("EVTYPE"), measure=c("total.prop","total.crop"))
+g2 <- ggplot(storm.cost.melt, aes(x=EVTYPE, y=value, fill=variable))
 g2 + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle=90, hjust=1))
 
 ```
