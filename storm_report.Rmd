@@ -1,4 +1,4 @@
-Title reflective of analysis
+Analysing the both the human and property cost of storm events in the United States since 1996 
 ========================================================
 
 ## Synopsis
@@ -6,6 +6,8 @@ Title reflective of analysis
 no more than 10 sentcences describing work
 
 ## Data procressing
+
+The NOAA dataset was downloaded from here. The storm data was read directly from the .bz2 file format without unzipping. To work with dates in the data set the storms start date (BGN_DATE) was used after it had been converted.
 
 ```{r,echo=TRUE, cache=TRUE}
 library(stringr)
@@ -18,8 +20,9 @@ storm.data$EVTYPE <- str_trim(storm.data$EVTYPE)
 
 ```
 
+In 1996 the NOAA started to capture more storm event types and standardise the data entries. with that in mind all data prior to 1996 was removed.
+
 ```{r,echo=TRUE, cache=TRUE}
-library(plyr)
 post.1995 <- storm.data[storm.data$BGN_DATE >= as.Date("01/01/1996",format="%m/%d/%Y"),]
 
 multiplier <- c(3,6,9)
@@ -40,12 +43,13 @@ post.1995$EVTYPE <-  sub("EROSION/CSTL FLOOD","COSTAL EROSION",post.1995$EVTYPE)
 ```
 
 ```{r,echo=TRUE}
+library(plyr)
 storm.harmful <- ddply(post.1995,c("EVTYPE"),summarise,total.injuries=sum(INJURIES),total.fatalities=sum(FATALITIES),avg.injuries=mean(INJURIES),avg.fatalities=mean(FATALITIES),total.events=length(EVTYPE))
-storm.harmful$total <- storm.harmful$total.injuries + storm.harmful$total.fatalities
-storm.harmful$avg.harm <- storm.harmful$total/storm.harmful$total.events
+storm.harmful$total.harm <- storm.harmful$total.injuries + storm.harmful$total.fatalities
+storm.harmful$avg.harm <- storm.harmful$total.harm/storm.harmful$total.events
 
-storm.harmful <- storm.harmful[storm.harmful$total > 0, ]
-storm.harmful.t10 <- head(storm.harmful[order(storm.harmful$total,decreasing=TRUE),],10)
+storm.harmful <- storm.harmful[storm.harmful$total.harm > 0, ]
+storm.harmful.t10 <- head(storm.harmful[order(storm.harmful$total.harm,decreasing=TRUE),],10)
 
 ```
 
@@ -54,34 +58,18 @@ storm.cost <- ddply(post.1995,c("EVTYPE"),summarise,total.crop=sum(fixed.crop.da
 storm.cost$total.cost <- storm.cost$total.crop + storm.cost$total.prop
 storm.cost$avg.total.cost <- storm.cost$total.cost/storm.cost$total.events
 storm.cost <- storm.cost[storm.cost$total.cost > 0,]
-storm.cost <- storm.cost[order(storm.cost$total.cost,decreasing=TRUE),]
-storm.cost.t10 <- head(storm.cost,10)
+storm.cost.t10 <- head(storm.cost[order(storm.cost$total.cost,decreasing=TRUE),],10)
 ```
 ## Results
-```{r,echo=TRUE}
+```{r,echo=TRUE,fig.width=10}
 library(ggplot2)
 g <- ggplot(storm.harmful.t10, aes(avg.injuries, avg.fatalities, size=total.events, label=EVTYPE))
 g <- g + geom_point(colour="#56B4E9", alpha=I(0.4)) + geom_text(size=3, hjust=0.5, vjust=1) + scale_y_log10() + scale_x_log10()
 g + scale_size(range=c(5,50)) + theme(legend.position="none")
 ```
 
-```{r,echo=TRUE}
-library(reshape2)
-storm.harmful.melt <- melt(storm.harmful.t10, id=c("EVTYPE"), measure=c("total.injuries","total.fatalities"))
-g2 <- ggplot(storm.harmful.melt, aes(x=EVTYPE, y=value, fill=variable))
-g2 + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle=90, hjust=1))
-
-```
-
-```{r,echo=TRUE}
+```{r,echo=TRUE,fig.width=10}
 g <- ggplot(storm.cost.t10, aes(avg.prop, avg.crop, size=total.events, label=EVTYPE))
 g <- g + geom_point(colour="#56B4E9", alpha=I(0.4)) + geom_text(size=3, hjust=0.3, vjust=1) + scale_y_log10() + scale_x_log10()
 g + scale_size(range=c(5,50)) + theme(legend.position="none")
-```
-
-```{r,echo=TRUE}
-storm.cost.melt <- melt(storm.cost.t10, id=c("EVTYPE"), measure=c("total.prop","total.crop"))
-g2 <- ggplot(storm.cost.melt, aes(x=EVTYPE, y=value, fill=variable))
-g2 + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle=90, hjust=1))
-
 ```
